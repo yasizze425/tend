@@ -376,11 +376,15 @@ function renderNow(){
       +'<button class="start did" id="didBtn">Did it</button>'
       +'<button class="start skip" id="skipBtn">Not now</button>'
       +'</div>'
-      +'<button class="start secondary" id="repBtn" style="margin-top:12px">Rather do an AI rep</button>'
+      +'<div class="row2" style="margin-top:12px">'
+      +'<button class="start secondary" id="editBtn">Edit / rename</button>'
+      +'<button class="start secondary" id="repBtn">AI rep instead</button>'
+      +'</div>'
       +'</div></div>';
     if(el("startBtn")&&el("startBtn").tagName==="BUTTON")el("startBtn").onclick=function(){toast("Started");};
     el("didBtn").onclick=function(){finishUnit(u.id);};
     el("skipBtn").onclick=function(){skipUnit(u.id);};
+    el("editBtn").onclick=function(){renderNameCard(u);};
     el("repBtn").onclick=function(){coachMode=true;renderNow();};
   } else {
     var c=DECK[Math.floor(Math.random()*DECK.length)];
@@ -419,40 +423,53 @@ function copyText(t){
 /* ---------- naming a caught thing (a unit in its own right) ---------- */
 function renderNameCard(u){
   var slot=el("nowSlot");
-  var looksLink=/^https?:\/\//i.test(u.text);
+  var looksLink=/^https?:\/\//i.test(u.text||"");
+  var isImgish=!!u.img||/\.(png|jpe?g|gif|webp|heic)$/i.test(u.text||"");
+  var editing=(u.raw===false);
   slot.innerHTML=
     '<div class="card"><div class="inner">'
-    +'<div class="eyebrow">Caught \u00b7 name it</div>'
+    +'<div class="eyebrow">'+(editing?'Naming · edit it':'Caught · name it')+'</div>'
     +(u.img?'<img class="shot" src="'+u.img+'" alt="caught screenshot">':'')
     +(u.img?'<button class="attach" id="nOcr" style="margin-top:0">Extract text</button>':'')
-    +(u.img?'<p class="help" style="margin:0 0 12px">Type the gist below, or tap Extract text to pull it from the image.</p>':'<p class="caught">'+esc(u.text)+'</p>')
-    +'<input class="f" id="nLabel" placeholder="Call it something you\u2019d reach for">'
-    +'<div class="seg" id="nTime" role="group" style="margin-top:14px">'
+    +(isImgish
+       ? '<p class="help" style="margin:0 0 4px">A screenshot. Name it, then say why you caught it.</p>'
+       : '<p class="caught">'+esc(u.text)+'</p>')
+    +'<label class="f" style="margin-top:'+(isImgish?'8px':'14px')+'">Name it</label>'
+    +'<input class="f" id="nLabel" placeholder="Call it something you’d reach for">'
+    +'<label class="f">Why you caught it · the gist</label>'
+    +'<textarea class="f" id="nNote" placeholder="What is this, and why it is worth your time" style="min-height:74px"></textarea>'
+    +'<label class="f">How long it needs</label>'
+    +'<div class="seg" id="nTime" role="group">'
       +'<button data-t="2" aria-pressed="false">A minute</button>'
       +'<button data-t="10" aria-pressed="true">A few</button>'
       +'<button data-t="999" aria-pressed="false">Longer</button>'
     +'</div>'
-    +'<div class="seg" id="nSrc" role="group" style="margin-top:10px">'
+    +'<label class="f">Where it came from</label>'
+    +'<div class="seg" id="nSrc" role="group">'
       +'<button data-s="LinkedIn" aria-pressed="false">LinkedIn</button>'
       +'<button data-s="Email" aria-pressed="false">Email</button>'
       +'<button data-s="AI rep" aria-pressed="false">AI rep</button>'
       +'<button data-s="Idea" aria-pressed="true">Idea</button>'
     +'</div>'
-    +'<input class="f" id="nLink" inputmode="url" placeholder="Lives at \u2014 OneDrive or web link (optional)" style="margin-top:10px">'
-    +'<textarea class="f" id="nNote" placeholder="'+(u.img?'The gist \u2014 type it or tap Extract text':'Note (optional)')+'" style="margin-top:10px;min-height:64px"></textarea>'
+    +'<label class="f">Lives at (optional link)</label>'
+    +'<input class="f" id="nLink" inputmode="url" placeholder="OneDrive or web link">'
     +(u.img?'<label class="chk"><input type="checkbox" id="nKeep" checked> Keep thumbnail</label>':'')
-    +'<button class="start did" id="nSave" style="margin-top:16px">Name it</button>'
+    +'<button class="start did" id="nSave" style="margin-top:18px">'+(editing?'Save':'Name it')+'</button>'
     +'<button class="start skip" id="nSkip">Not now</button>'
     +'</div></div>';
   var lab=el("nLabel");
-  lab.value=(looksLink||u.img)?"":u.text.slice(0,80);
-  if(looksLink)el("nLink").value=u.text;
+  lab.value=(u.label&&u.label!==u.text)?u.label:((looksLink||isImgish)?"":(u.text||"").slice(0,80));
+  el("nNote").value=u.note||"";
+  if(u.link)el("nLink").value=u.link;
+  else if(looksLink)el("nLink").value=u.text;
   wireSeg("nTime");wireSeg("nSrc");
+  pressSeg("nTime","t",u.mins);
+  pressSeg("nSrc","s",u.source);
   if(u.img){
     el("nOcr").onclick=function(){runOcr(u,el("nOcr"));};
   }
   el("nSave").onclick=function(){
-    u.label=lab.value.trim()||u.text.slice(0,80);
+    u.label=lab.value.trim()||(isImgish?"Screenshot":(u.text||"").slice(0,80));
     u.note=el("nNote").value.trim();
     u.mins=parseInt(segVal("nTime").t||"10",10);
     u.source=segVal("nSrc").s||"Idea";
@@ -460,9 +477,18 @@ function renderNameCard(u){
     var keep=el("nKeep");
     if(u.img&&keep&&!keep.checked)u.img="";
     u.raw=false;
-    save();renderNow();toast("Named \u2014 it\u2019s in the queue");
+    save();coachMode=false;renderNow();toast("Saved — it’s in the queue");
   };
   el("nSkip").onclick=function(){skipUnit(u.id);};
+}
+function pressSeg(id,attr,val){
+  if(val===undefined||val===null||val==="")return;
+  var btns=Array.prototype.slice.call(document.querySelectorAll("#"+id+" button"));
+  var target=null;
+  btns.forEach(function(b){if((""+b.dataset[attr])===(""+val))target=b;});
+  if(!target)return;
+  btns.forEach(function(b){b.setAttribute("aria-pressed","false");});
+  target.setAttribute("aria-pressed","true");
 }
 
 /* ---------- OCR (lazy, online only; the harness is the real home for this) ---------- */
