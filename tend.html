@@ -42,7 +42,7 @@
     width:100%;
     max-width:520px;
     margin:0 auto;
-    padding:max(18px,env(safe-area-inset-top)) 20px 96px;
+    padding:max(18px,env(safe-area-inset-top)) 20px 128px;
     display:flex;
     flex-direction:column;
   }
@@ -328,6 +328,7 @@ function save(){
 }
 var state=load();
 var timeFilter=10;
+var coachMode=false;
 
 /* ---------- coach deck: pocket AI reps. Copy, paste into your Claude app. ---------- */
 var DECK=[
@@ -357,7 +358,7 @@ function pickUnit(){
 function renderNow(){
   el("doneCount").textContent=doneToday()?doneToday()+" tended today":"";
   var slot=el("nowSlot");
-  var u=pickUnit();
+  var u=coachMode?null:pickUnit();
   if(u&&u.raw){renderNameCard(u);return;}
   if(u){
     var link=u.link
@@ -374,22 +375,28 @@ function renderNow(){
       +'<div class="row2">'
       +'<button class="start did" id="didBtn">Did it</button>'
       +'<button class="start skip" id="skipBtn">Not now</button>'
-      +'</div></div></div>';
+      +'</div>'
+      +'<button class="start secondary" id="repBtn" style="margin-top:12px">Rather do an AI rep</button>'
+      +'</div></div>';
     if(el("startBtn")&&el("startBtn").tagName==="BUTTON")el("startBtn").onclick=function(){toast("Started");};
     el("didBtn").onclick=function(){finishUnit(u.id);};
     el("skipBtn").onclick=function(){skipUnit(u.id);};
+    el("repBtn").onclick=function(){coachMode=true;renderNow();};
   } else {
     var c=DECK[Math.floor(Math.random()*DECK.length)];
+    var hasQueue=state.queue.length>0;
     slot.innerHTML=
       '<div class="card coach"><div class="inner">'
-      +'<div class="eyebrow">Queue\u2019s empty \u00b7 here\u2019s a rep</div>'
+      +'<div class="eyebrow">'+(coachMode&&hasQueue?'An AI rep':'Queue\u2019s empty \u00b7 here\u2019s a rep')+'</div>'
       +'<h1 class="unit-label">'+esc(c.title)+'</h1>'
       +'<p class="coach-prompt">'+esc(c.prompt)+'</p>'
       +'<button class="start" id="copyBtn">Copy prompt</button>'
       +'<button class="start secondary" id="anotherBtn">Show another</button>'
+      +(coachMode&&hasQueue?'<button class="start skip" id="backBtn" style="margin-top:12px">Back to my queue</button>':'')
       +'</div></div>';
     el("copyBtn").onclick=function(){copyText(c.prompt);};
     el("anotherBtn").onclick=renderNow;
+    var bb=el("backBtn");if(bb)bb.onclick=function(){coachMode=false;renderNow();};
   }
 }
 function timeWord(m){return m<=2?"A minute":m<=10?"A few minutes":"Longer";}
@@ -418,7 +425,7 @@ function renderNameCard(u){
     +'<div class="eyebrow">Caught \u00b7 name it</div>'
     +(u.img?'<img class="shot" src="'+u.img+'" alt="caught screenshot">':'')
     +(u.img?'<button class="attach" id="nOcr" style="margin-top:0">Extract text</button>':'')
-    +'<p class="caught">'+esc(u.text)+'</p>'
+    +(u.img?'<p class="help" style="margin:0 0 12px">Type the gist below, or tap Extract text to pull it from the image.</p>':'<p class="caught">'+esc(u.text)+'</p>')
     +'<input class="f" id="nLabel" placeholder="Call it something you\u2019d reach for">'
     +'<div class="seg" id="nTime" role="group" style="margin-top:14px">'
       +'<button data-t="2" aria-pressed="false">A minute</button>'
@@ -432,13 +439,13 @@ function renderNameCard(u){
       +'<button data-s="Idea" aria-pressed="true">Idea</button>'
     +'</div>'
     +'<input class="f" id="nLink" inputmode="url" placeholder="Lives at \u2014 OneDrive or web link (optional)" style="margin-top:10px">'
-    +'<input class="f" id="nNote" placeholder="Note (optional)" style="margin-top:10px">'
+    +'<textarea class="f" id="nNote" placeholder="'+(u.img?'The gist \u2014 type it or tap Extract text':'Note (optional)')+'" style="margin-top:10px;min-height:64px"></textarea>'
     +(u.img?'<label class="chk"><input type="checkbox" id="nKeep" checked> Keep thumbnail</label>':'')
     +'<button class="start did" id="nSave" style="margin-top:16px">Name it</button>'
     +'<button class="start skip" id="nSkip">Not now</button>'
     +'</div></div>';
   var lab=el("nLabel");
-  lab.value=looksLink?"":u.text.slice(0,80);
+  lab.value=(looksLink||u.img)?"":u.text.slice(0,80);
   if(looksLink)el("nLink").value=u.text;
   wireSeg("nTime");wireSeg("nSrc");
   if(u.img){
